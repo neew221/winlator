@@ -11,11 +11,13 @@ jobs:
     - name: 1 安装依赖
       run: |
         sudo apt update && sudo apt install -y libarchive-tools wget
+        
     - name: 2 克隆仓库
       uses: actions/checkout@v4
       with:
         ref: main #指定checkout的分支
         submodules: recursive
+        
     - name: 3 gradle验证
       uses: gradle/wrapper-validation-action@v2
       
@@ -36,17 +38,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-    - name: 6 下载数据包
-      run: |
-        rm -rf app/src/main/assets/imagefs.txz 
-        wget -P app/src/main/assets \
-        https://github.com/ewt45/winlator-fork/releases/download/0.0.0.store/imagefs.txz
-
-    - name: 7. 构建
+    - name: 6. 构建
       run: chmod +x ./gradlew && ./gradlew assembleDebug
     
-    - name: 8. 上传apk到action
+    - name: 7. 上传apk到action
       uses: actions/upload-artifact@v4
       with:
         name: winlator-arm64-v8-debug
         path: ./app/build/outputs/apk/debug/app-debug.apk
+        
