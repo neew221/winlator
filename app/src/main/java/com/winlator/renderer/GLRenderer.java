@@ -45,6 +45,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private boolean toggleFullscreen = false;
     private boolean viewportNeedsUpdate = true;
     private boolean cursorVisible = true;
+    private boolean rootWindowDownsized = false;
     private boolean screenOffsetYRelativeToCursor = false;
     private String[] unviewableWMClasses = null;
     private float magnifierZoom = 1.0f;
@@ -113,7 +114,11 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     private void drawFrame() {
         boolean xrFrame = false;
-        if (XrActivity.isSupported()) xrFrame = XrActivity.getInstance().beginFrame(XrActivity.getImmersive(), XrActivity.getSBS());
+        boolean xrImmersive = false;
+        if (XrActivity.isSupported()) {
+            xrImmersive = XrActivity.getImmersive();
+            xrFrame = XrActivity.getInstance().beginFrame(xrImmersive, XrActivity.getSBS());
+        }
 
         if (viewportNeedsUpdate && magnifierEnabled) {
             if (fullscreen) {
@@ -158,8 +163,8 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             else XForm.identity(tmpXForm2);
         }
 
-        renderWindows();
-        if (cursorVisible) renderCursor();
+        renderWindows(xrImmersive);
+        if (cursorVisible && !rootWindowDownsized) renderCursor();
 
         if (!magnifierEnabled && !fullscreen) GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
 
@@ -239,14 +244,28 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         }
     }
 
-    private void renderWindows() {
+    private void renderWindows(boolean forceFullscreen) {
         windowMaterial.use();
         GLES20.glUniform2f(windowMaterial.getUniformLocation("viewSize"), xServer.screenInfo.width, xServer.screenInfo.height);
         quadVertices.bind(windowMaterial.programId);
 
         try (XLock lock = xServer.lock(XServer.Lockable.DRAWABLE_MANAGER)) {
-            for (RenderableWindow window : renderableWindows) {
-                renderDrawable(window.content, window.rootX, window.rootY, windowMaterial, window.forceFullscreen);
+            rootWindowDownsized = false;
+            if (!renderableWindows.isEmpty()) {
+                RenderableWindow root = renderableWindows.get(0);
+                if ((root.content.width < xServer.screenInfo.width) || (root.content.height < xServer.screenInfo.height)) {
+                    forceFullscreen = true;
+                    rootWindowDownsized = true;
+                }
+            }
+
+            if (forceFullscreen && !renderableWindows.isEmpty()) {
+                RenderableWindow window = renderableWindows.get(renderableWindows.size() - 1);
+                renderDrawable(window.content, window.rootX, window.rootY, windowMaterial, true);
+            } else {
+                for (RenderableWindow window : renderableWindows) {
+                    renderDrawable(window.content, window.rootX, window.rootY, windowMaterial, window.forceFullscreen);
+                }
             }
         }
 
